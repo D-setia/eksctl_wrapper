@@ -19,6 +19,7 @@ import (
 
 	// "github.com/weaveworks/eksctl/pkg/ctl/completion"
     "github.com/weaveworks/eksctl/pkg/ctl/create"
+    "github.com/weaveworks/eksctl/pkg/ctl/delete"
     "github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 	"github.com/weaveworks/eksctl/pkg/info"
     "github.com/weaveworks/eksctl/pkg/version"
@@ -157,6 +158,7 @@ func versionCmd(cmd *cmdutils.Cmd) {
 
 func addCommands(rootCmd *cobra.Command, flagGrouping *cmdutils.FlagGrouping) {
 	rootCmd.AddCommand(create.Command(flagGrouping))
+    rootCmd.AddCommand(delete.Command(flagGrouping))
 	//Ensures "eksctl --help" presents eksctl anywhere as a command, but adds no subcommands since we invoke the binary.
 	rootCmd.AddCommand(cmdutils.NewVerbCmd("anywhere", "EKS anywhere", ""))
 
@@ -191,8 +193,6 @@ func checkCommand(rootCmd *cobra.Command) {
 //export CreateCluster
 func CreateCluster(configFile *C.char) *C.char {
     rootCmd := &cobra.Command{
-        Use:   "eksctl [command]",
-        Short: "The official CLI for Amazon EKS",
         Run: func(c *cobra.Command, _ []string) {
             if err := c.Help(); err != nil {
                 fmt.Printf("ignoring cobra error %q\n", err.Error())
@@ -217,6 +217,72 @@ func CreateCluster(configFile *C.char) *C.char {
     }
 
     return C.CString("Cluster created successfully")
+}
+
+
+//export DeleteCluster
+func DeleteCluster(clusterName *C.char) *C.char {
+    rootCmd := &cobra.Command{
+        Run: func(c *cobra.Command, _ []string) {
+            if err := c.Help(); err != nil {
+                fmt.Printf("ignoring cobra error %q\n", err.Error())
+            }
+        },
+        SilenceUsage: true,
+    }
+
+    flagGrouping := cmdutils.NewGrouping()
+    addCommands(rootCmd, flagGrouping)
+    checkCommand(rootCmd)
+
+    rootCmd.SetArgs([]string{"delete", "cluster", "--name", C.GoString(clusterName)})
+
+    logBuffer := new(bytes.Buffer)
+    cobra.OnInitialize(func() {
+        initLogger(3, "true", logBuffer, false)
+    })
+
+    if err := rootCmd.Execute(); err != nil {
+        return C.CString(err.Error())
+    }
+
+    return C.CString("Cluster deleted successfully")
+}
+
+
+//export GiveClusterAccess
+func GiveClusterAccess(clusterName *C.char, arn *C.char, region *C.char) *C.char {
+    rootCmd := &cobra.Command{
+        Run: func(c *cobra.Command, _ []string) {
+            if err := c.Help(); err != nil {
+                fmt.Printf("ignoring cobra error %q\n", err.Error())
+            }
+        },
+        SilenceUsage: true,
+    }
+
+    flagGrouping := cmdutils.NewGrouping()
+    addCommands(rootCmd, flagGrouping)
+    checkCommand(rootCmd)
+
+    rootCmd.SetArgs([]string{"create", "iamidentitymapping", 
+        "--cluster", C.GoString(clusterName), 
+        "--region", C.GoString(region), 
+        "--arn", C.GoString(arn), 
+        "--group", "system:masters", 
+        "--username",  "tensorkube-cluster-access",
+    })
+
+    logBuffer := new(bytes.Buffer)
+    cobra.OnInitialize(func() {
+        initLogger(3, "true", logBuffer, false)
+    })
+
+    if err := rootCmd.Execute(); err != nil {
+        return C.CString(err.Error())
+    }
+
+    return C.CString("Access given successfully")
 }
 
 func main() {}
